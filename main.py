@@ -1,5 +1,6 @@
 import argparse
 import copy
+import datetime
 import os
 
 import cv2
@@ -157,6 +158,14 @@ def main():
     # Predict
     pred, score = predict(hist_train, hist_val, y_train, y_val, args.seed, args.regularization)
     print('[ INFO ] Accuracy: {:.3f} %'.format(score * 100))
+
+    # Logging
+    KST = datetime.timezone(datetime.timedelta(hours=9))
+    now = datetime.datetime.now(tz=KST).strftime('%Y-%m-%d-%H-%M')
+
+    log_path = os.path.join(result_path, 'parameter_accuracy.log')
+    with open(log_path, 'a') as f:
+        f.write('{}\t{:.5f}\t\t{}\n'.format(now, score, args))
 
 
 if __name__ == '__main__':
