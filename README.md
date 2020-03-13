@@ -24,3 +24,7 @@ pip install -r requirements.txt
 ```sh
 make download
 ```
+
+## Issues
+
+- Please check [here](./ISSUES.md)
