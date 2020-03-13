@@ -1,0 +1,4 @@
+kaggle==1.5.6
+scikit-learn==0.22.2
+opencv-python==4.2.0.32
+opencv-contrib-python==4.2.0.32
