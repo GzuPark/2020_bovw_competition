@@ -1,5 +1,4 @@
 import argparse
-import copy
 import datetime
 import os
 
@@ -29,7 +28,7 @@ def get_args():
 
 
 @utils.timer
-def get_data():
+def get_data(ratio, seed):
     real_path = os.path.dirname(os.path.realpath(__file__))
     data_path = os.path.join(real_path, 'data')
     train_path = os.path.join(data_path, 'traindata')
@@ -37,16 +36,27 @@ def get_data():
     
     data = {}
 
-    # ---------- train ----------
+    # ---------- train, validation ----------
     data['train'] = {}
+    data['validation'] = {}
+
     y_train_list = os.listdir(train_path)
     
     for label in y_train_list:
         if label not in data['train'].keys():
             _y_train_path = os.path.join(train_path, label)
-            data['train'][label] = \
-                [os.path.join(_y_train_path, img_path) for img_path in os.listdir(_y_train_path)]
-    
+            _all_file_path = [os.path.join(_y_train_path, img_path) for img_path in os.listdir(_y_train_path)]
+
+            _train_img_path, _val_img_path = train_test_split(
+                _all_file_path,
+                test_size=ratio,
+                random_state=seed,
+                shuffle=True,
+            )
+
+            data['train'][label] = [os.path.join(_y_train_path, img_path) for img_path in _train_img_path]
+            data['validation'][label] = [os.path.join(_y_train_path, img_path) for img_path in _val_img_path]
+
     # ---------- test ----------
     data['test'] = [os.path.join(test_path, img_path) for img_path in os.listdir(test_path)]
 
@@ -57,6 +67,8 @@ def get_data():
 def load_data(data):
     X_train = []
     y_train = []
+    X_val = []
+    y_val = []
     X_test = []
 
     # ---------- train ----------
@@ -65,11 +77,17 @@ def load_data(data):
             X_train.append(cv2.imread(img_path, 0))
             y_train.append(img_label)
 
+    # ---------- validation ----------
+    for img_label, img_path_list in data['validation'].items():
+        for img_path in img_path_list:
+            X_val.append(cv2.imread(img_path, 0))
+            y_val.append(img_label)
+
     # ---------- test ----------
     for img_path in data['test']:
         X_test.append(cv2.imread(img_path, 0))
 
-    return X_train, y_train, X_test
+    return X_train, y_train, X_val, y_val, X_test
         
 
 @utils.timer
@@ -87,7 +105,6 @@ def extract_features(data):
 def train_clustering(descriptors, voc_size, seed, verbose=0):
     features = np.vstack([desc for desc in descriptors])
     kmeans = KMeans(n_clusters=voc_size, n_jobs=-2, random_state=seed, verbose=verbose).fit(features)
-    # codebook = kmeans.cluster_centers_.squeeze()
 
     return kmeans
 
@@ -111,20 +128,10 @@ def predict(hist_train, hist_val, y_train, y_val, seed, C):
     return pred, score
 
 
-def main():
-    args = get_args()
-    data, real_path = get_data()
-    
-    train_data, train_label, X_test = load_data(data)
-
-    # Split train and validation
-    X_train, X_val, y_train, y_val = train_test_split(
-        train_data, train_label, 
-        test_size=args.ratio,
-        random_state=args.seed,
-        shuffle=True,
-    )
-    print('[ INFO ] Split dataset:\n\tRatio: {}\n\t# of Train: {}\n\t# of Validation: {}'.format(args.ratio, len(y_train), len(y_val)))
+def run(args):
+    # Load and split data
+    data, real_path = get_data(args.ratio, args.seed)
+    X_train, y_train, X_val, y_val, X_test = load_data(data)
 
     # Extract features
     feature_train = extract_features(X_train)
@@ -136,7 +143,7 @@ def main():
     if not os.path.exists(result_path):
         os.makedirs(result_path)
 
-    codebook_filename = 'codebook_{}.p'.format(str(args.voc_size))
+    codebook_filename = 'codebook_{}_{}_{}.p'.format(str(args.ratio), str(args.seed), str(args.voc_size))
     codebook_path = os.path.join(result_path, codebook_filename)
 
     if (not os.path.exists(codebook_path)) or (args.force_train):
@@ -157,7 +164,7 @@ def main():
 
     # Predict
     pred, score = predict(hist_train, hist_val, y_train, y_val, args.seed, args.regularization)
-    print('[ INFO ] Accuracy: {:.3f} %'.format(score * 100))
+    print('[ INFO ] Accuracy: {:.3f} %\n'.format(score * 100))
 
     # Logging
     KST = datetime.timezone(datetime.timedelta(hours=9))
@@ -166,6 +173,22 @@ def main():
     log_path = os.path.join(result_path, 'parameter_accuracy.log')
     with open(log_path, 'a') as f:
         f.write('{}\t{:.5f}\t\t{}\n'.format(now, score, args))
+
+
+def main():
+    args = get_args()
+
+    voc_size = np.arange(100, 400, 100)
+    regularization = np.arange(0.001, 0.1, 0.001)
+
+    for _voc in voc_size:
+        args.voc_size = _voc
+        args.force_train = True
+        for _reg in regularization:
+            args.regularization = _reg
+            run(args)
+            args.force_train = False
+
 
 
 if __name__ == '__main__':

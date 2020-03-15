@@ -290,5 +290,6 @@ $RECYCLE.BIN/
 
 # End of https://www.gitignore.io/api/linux,macos,python,pycharm,windows,jupyternotebooks,visualstudiocode
 
+params.cfg
 data/*
 result/*
