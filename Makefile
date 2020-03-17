@@ -8,6 +8,3 @@ download :
 	@unzip -q ${COMPETITION_NAME}.zip -d ${DESTINATION_PATH}
 	@rm ${COMPETITION_NAME}.zip
 	@echo "[ INFO ] Complete to prepare dataset"
-
-run:
-	@python main.py
