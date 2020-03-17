@@ -118,6 +118,7 @@ def predict(hist_train, y_train, hist_test, seed, C):
 @utils.timer
 def get_accuracy(y_test, pred):
     score = accuracy_score(y_test, pred)
+    return score
 
 
 def train(args):
