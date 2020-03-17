@@ -11,7 +11,6 @@ from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
-from sklearn.svm import SVC
 
 import utils
 
@@ -25,8 +24,6 @@ def get_args():
     parser.add_argument('--seed', type=int, default=42, help='Random seed number')
     parser.add_argument('--voc-size', type=int, default=200, help='Size of vocabulary')
     parser.add_argument('-C', '--regularization', type=float, default=0.1, help='Regularization parameter in LinearSVC/SVC')
-    parser.add_argument('--gamma', type=str, default='scale', help='Gamma parameter in SVC')
-    parser.add_argument('--clf_method', type=str, default='LinearSVC', help='Select classifier method')
     parser.add_argument('--result-log', type=str, default='parameter_accuracy.log', help='Log file name')
     args = parser.parse_args()
 
@@ -129,11 +126,8 @@ def represent_histogram(feature, codebook, minlength):
 
 
 @utils.timer
-def predict(hist_train, hist_val, y_train, y_val, method, seed, C, gamma):
-    if method == 'LinearSVC':
-        clf = LinearSVC(random_state=seed, C=C, max_iter=3000).fit(hist_train, y_train)
-    elif method == 'SVC':
-        clf = SVC(random_state=seed, C=C, gamma=gamma, max_iter=3000).fit(hist_train, y_train)
+def predict(hist_train, hist_val, y_train, y_val, seed, C):
+    clf = LinearSVC(random_state=seed, C=C, max_iter=3000).fit(hist_train, y_train)
     pred = clf.predict(hist_val)
     score = accuracy_score(y_val, pred)
 
@@ -187,7 +181,7 @@ def run(args):
     hist_val = scaler.transform(hist_val)
 
     # Predict
-    pred, score = predict(hist_train, hist_val, y_train, y_val, args.clf_method, args.seed, args.regularization, args.gamma)
+    pred, score = predict(hist_train, hist_val, y_train, y_val, args.seed, args.regularization)
     print('[ INFO ] Accuracy: {:.3f} %\n'.format(score * 100))
 
     # Logging
@@ -202,12 +196,10 @@ def run(args):
 def main():
     args = get_args()
 
-    voc_size = np.arange(50, 401, 50)
-    clf_method = ['LinearSVC', 'SVC']
+    voc_size = [200, 400]
     regularization = np.arange(0.0001, 0.0101, 0.0001)
-    gamma = ['scale', 'auto']
 
-    knob_params = [voc_size, clf_method, regularization, gamma]
+    knob_params = [voc_size, regularization]
     comb_params = list(itertools.product(*knob_params))
     total_comb = len(comb_params)
 
@@ -221,11 +213,9 @@ def main():
             prev_voc_size = params[0]
             args.force_train = True
         args.voc_size = params[0]
-        args.clf_method = params[1]
-        args.regularization = params[2]
-        args.gamma = params[3]
-        print('Start to train [ {}/{} ]:\n Vocab:\t{}\n Clf:\t{}\n C:\t{}\n Seed:\t{}\n'.format(
-            i+1, total_comb, args.voc_size, args.clf_method, args.regularization, args.seed ))
+        args.regularization = params[1]
+        print('Start to train [ {}/{} ]:\n Vocab:\t{}\n Seed:\t{}\n C:\t{}\n'.format(
+            i+1, total_comb, args.voc_size, args.seed, args.regularization ))
         run(args)
 
 
