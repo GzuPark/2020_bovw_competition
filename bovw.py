@@ -109,15 +109,18 @@ def represent_histogram(feature, codebook, minlength):
 
 
 @utils.timer
-def predict(hist_train, hist_val, y_train, y_val, seed, C):
+def predict(hist_train, y_train, hist_test, seed, C):
     clf = LinearSVC(random_state=seed, C=C, max_iter=3000).fit(hist_train, y_train)
-    pred = clf.predict(hist_val)
-    score = accuracy_score(y_val, pred)
+    pred = clf.predict(hist_test)
 
-    return pred, score
+    return pred
+
+@utils.timer
+def get_accuracy(y_test, pred):
+    score = accuracy_score(y_test, pred)
 
 
-def run(args):
+def train(args):
     # Load and split data
     data, real_path = get_data(args.ratio, args.seed)
     X_train, y_train, X_val, y_val, X_test = load_data(data, args.image_size)
@@ -164,7 +167,8 @@ def run(args):
     hist_val = scaler.transform(hist_val)
 
     # Predict
-    pred, score = predict(hist_train, hist_val, y_train, y_val, args.seed, args.regularization)
+    pred = predict(hist_train, y_train, hist_val, args.seed, args.regularization)
+    score = get_accuracy(y_val, pred)
     print('[ INFO ] Accuracy: {:.3f} %\n'.format(score * 100))
 
     # Logging

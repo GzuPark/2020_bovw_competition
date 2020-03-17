@@ -25,25 +25,40 @@ $ pip install -r requirements.txt
 $ make download
 ```
 
-## Run
+## Codes
 
 ```sh
-# Default argument values
-$ make run
-
-# Optional values
-$ python main.py [-f] [--verbose VERBOSE] [--ratio RATIO] [--seed SEED] [--voc-size VOC_SIZE] [-C REGULARIZATION]
+$ python main.py [-f] [--image-size IMAGE_SIZE [IMAGE_SIZE ...]]
+        [--verbose VERBOSE] [--ratio RATIO] [--seed SEED]
+        [--voc-size VOC_SIZE] [-C REGULARIZATION]
+        [--result-log RESULT_LOG] [--train] [--show] [--top-n TOP_N]
 
 optional arguments:
+  -h, --help            show this help message and exit
   -f, --force-train     Force training even if a codebook have
+  --image-size IMAGE_SIZE [IMAGE_SIZE ...]  Resize image size | (0,0) means that do not resize
   --verbose VERBOSE     Verbose level of scikit-learn
-  --ratio RATIO         Split ratio of train / validation
+  --ratio RATIO         Split ratio of train/validation
   --seed SEED           Random seed number
   --voc-size VOC_SIZE   Size of vocabulary
-  -C REGULARIZATION, --regularization REGULARIZATION    Regularization parameter in LinearSVC
+  -C REGULARIZATION, --regularization REGULARIZATION  Regularization parameter in LinearSVC
+  --result-log RESULT_LOG   Log file name
+  --train               Train and evaluate BoVW model
+  --show                Show accuracy in the log file
+  --top-n TOP_N         Show top N accuracy
 ```
 
+### Train
 
+```sh
+$ python main.py --train
+```
+
+### Show Top-N accuracy
+
+```sh
+$ python main.py --show --top-n 10
+```
 
 ## Issues
 
