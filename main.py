@@ -68,13 +68,10 @@ def train_grid(args):
         logger.info('Total combination: {}'.format(total_comb))
 
         for i, params in enumerate(comb_params):
-            if prev_img_size == params[0] and prev_voc_size == params[1] and prev_feat_step_size == params[2]:
-                args.force_train = False
-            else:
+            if prev_img_size != params[0] or prev_voc_size != params[1] or prev_feat_step_size != params[2]:
                 prev_img_size = params[0]
                 prev_voc_size = params[1]
                 prev_feat_step_size = params[2]
-                args.force_train = True
             args.image_size = params[0]
             args.voc_size = params[1]
             args.feat_step_size = params[2]
@@ -85,7 +82,6 @@ def train_grid(args):
             notification(args, i, total_comb)
             bovw.train(args)
     else:
-        args.force_train = True
         notification(args, 0, 1)
         bovw.train(args)
 
