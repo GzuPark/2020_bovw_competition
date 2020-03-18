@@ -15,15 +15,15 @@ This is the [2020 Spring: BoVW Competition](https://www.kaggle.com/c/2020backofw
 
 1. Install Python packages
 
-```sh
-$ pip install -r requirements.txt
-```
+    ```sh
+    $ pip install -r requirements.txt
+    ```
 
 2. Download the dataset
 
-```sh
-$ make download
-```
+    ```sh
+    $ make download
+    ```
 
 ## How to use
 
