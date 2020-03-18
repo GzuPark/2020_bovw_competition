@@ -189,10 +189,11 @@ def train(args):
         os.makedirs(_tmp_path)
 
     # Extract features
-    feat_train_filename = 'feat_train_{}_{}.p'.format(str(args.image_size[0]), str(args.image_size[1]))
+    _middle_name = 'r{}_s{}_img{}_{}_step{}'.format(args.ratio, args.seed, args.image_size[0], args.image_size[1], args.feat_step_size)
+    feat_train_filename = 'feat_train_{}.p'.format(_middle_name)
     feat_train_path = os.path.join(_tmp_path, feat_train_filename)
 
-    if (not os.path.exists(feat_train_path)) or (not os.path.exists(feat_val_path)) or (args.force_train):
+    if (not os.path.exists(feat_train_path)) or (args.force_train):
         feature_train = extract_features(X_train, args.feat_step_size)
         utils.safe_pickle_dump(feature_train, feat_train_path)
         logger.info('Save caches of features')
@@ -206,7 +207,7 @@ def train(args):
             descriptors.append(feature_train[i][j,:])
     
     # Generate codebook
-    codebook_filename = 'codebook_{}_{}_{}.p'.format(str(args.ratio), str(args.seed), str(args.voc_size))
+    codebook_filename = 'codebook_voc{}_{}.p'.format(args.voc_size, _middle_name)
     codebook_path = os.path.join(_tmp_path, codebook_filename)
 
     if (not os.path.exists(codebook_path)) or (args.force_train):
