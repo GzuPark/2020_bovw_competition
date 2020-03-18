@@ -1,3 +1,5 @@
+import logging
+import logging.handlers
 import os
 import pickle
 import tempfile
@@ -7,13 +9,31 @@ from contextlib import contextmanager
 from functools import wraps
 
 
+logger = logging.getLogger(__name__)
+
+stream_formatter = logging.Formatter('[%(asctime)s][%(levelname)s] %(message)s')
+file_formatter = logging.Formatter('[%(asctime)s][%(levelname)s] %(message)s')
+    
+stream_handler = logging.StreamHandler()
+logger_path = os.path.join(os.getcwd(), 'server.log')
+file_handler = logging.FileHandler(logger_path)
+
+stream_handler.setFormatter(stream_formatter)
+file_handler.setFormatter(file_formatter)
+
+logger.addHandler(stream_handler)
+logger.addHandler(file_handler)
+
+logger.setLevel(level=logging.DEBUG)
+
+
 def timer(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         t1 = time.time()
         result = func(*args, **kwargs)
         t2 = time.time() - t1
-        print('[ INFO ] Running time [ {} ]: {:.3f} sec'.format(func.__name__, t2))
+        logger.info('Running time [ {} ]: {:.3f} sec'.format(func.__name__, t2))
         return result
     return wrapper
 
@@ -56,6 +76,6 @@ def pickle_load(fname):
     try:
         db = pickle.load(open(fname, 'rb'))
     except Exception as e:
-        print('error loading existing database:\n{}\nstarting from an empty database'.format(e))
+        logger.error('error loading existing database:\n{}\nstarting from an empty database'.format(e))
         db = {}
     return db
