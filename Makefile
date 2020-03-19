@@ -12,6 +12,9 @@ download :
 	@rm ${COMPETITION_NAME}.zip
 	@echo "[ INFO ] Complete to prepare dataset"
 
+install :
+	@pip install -r requirements.txt
+
 submit :
 	@kaggle competitions submit -c ${COMPETITION_NAME} -f ./result/submit/${SUBMIT} -m ${MSG}
 
