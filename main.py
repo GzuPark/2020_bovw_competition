@@ -65,13 +65,23 @@ def train_grid(args):
         prev_img_size = [1, 1]
         prev_voc_size = 0
         prev_feat_step_size = 0
+        prev_dense_step_size = 0
+        prev_level = 999
+        
         logger.info('Total combination: {}'.format(total_comb))
 
         for i, params in enumerate(comb_params):
-            if prev_img_size != params[0] or prev_voc_size != params[1] or prev_feat_step_size != params[2]:
+            if prev_img_size != params[0] or \
+                prev_voc_size != params[1] or \
+                prev_feat_step_size != params[2] or \
+                prev_dense_step_size != params[3] or \
+                prev_level != params[4]:
                 prev_img_size = params[0]
                 prev_voc_size = params[1]
                 prev_feat_step_size = params[2]
+                prev_dense_step_size = params[3]
+                prev_level = params[4]
+
             args.image_size = params[0]
             args.voc_size = params[1]
             args.feat_step_size = params[2]

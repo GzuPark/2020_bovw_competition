@@ -219,10 +219,26 @@ def train(args):
         logger.info('Complete to load \' {} \''.format(codebook_filename))
     
     # Represent image using codebook
-    spm = SPM(args.dense_step_size, args.level, codebook, args.voc_size)
-    hist_train = spm.get_histogram(X_train)
-    hist_val = spm.get_histogram(X_val)
-    hist_test = spm.get_histogram(X_test)
+    hist_filename = 'hist_patch{}_L{}_voc{}_{}.p'.format(args.dense_step_size, args.level, args.voc_size, _middle_name)
+    hist_path = os.path.join(_tmp_path, hist_filename)
+    _tmp_hist = {}
+
+    if (not os.path.exists(hist_path)) or (args.force_train):
+        spm = SPM(args.dense_step_size, args.level, codebook, args.voc_size)
+        hist_train = spm.get_histogram(X_train)
+        hist_val = spm.get_histogram(X_val)
+        hist_test = spm.get_histogram(X_test)
+        _tmp_hist['hist_train'] = hist_train
+        _tmp_hist['hist_val'] = hist_val
+        _tmp_hist['hist_test'] = hist_test
+        utils.safe_pickle_dump(_tmp_hist, hist_path)
+        logger.info('Complete to get histogram')
+    else:
+        _tmp_hist = utils.pickle_load(hist_path)
+        hist_train = _tmp_hist['hist_train']
+        hist_val = _tmp_hist['hist_val']
+        hist_test = _tmp_hist['hist_test']
+        logger.info('Complete to load \' {} \''.format(hist_filename))
 
     # Predict
     pred_val, pred_test = predict(hist_train, y_train, hist_val, hist_test, args.seed, args.regularization)
