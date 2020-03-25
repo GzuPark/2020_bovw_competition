@@ -1,3 +1,4 @@
+import datetime
 import logging
 import logging.handlers
 import os
@@ -9,13 +10,27 @@ from contextlib import contextmanager
 from functools import wraps
 
 
+def _get_logger_path():
+    KST = datetime.timezone(datetime.timedelta(hours=9))
+    now = datetime.datetime.now(tz=KST).strftime('%Y%m%d-%H%M%S')
+    
+    real_path = os.path.dirname(os.path.realpath(__file__))
+    logger_path = os.path.join(real_path, 'result', 'logs')
+    if not os.path.exists(logger_path):
+        os.makedirs(logger_path, exist_ok=True)
+
+    filename = now + '.log'
+    filepath = os.path.join(logger_path, filename)
+    return filepath
+
+
 logger = logging.getLogger(__name__)
 
 stream_formatter = logging.Formatter('[%(asctime)s][%(levelname)s] %(message)s')
 file_formatter = logging.Formatter('[%(asctime)s][%(levelname)s] %(message)s')
     
 stream_handler = logging.StreamHandler()
-logger_path = os.path.join(os.getcwd(), 'server.log')
+logger_path = _get_logger_path()
 file_handler = logging.FileHandler(logger_path)
 
 stream_handler.setFormatter(stream_formatter)
@@ -55,7 +70,7 @@ def _tempfile(*args, **kwargs):
 
 
 @contextmanager
-def open_atomic(filepath, *args, **kwargs):
+def _open_atomic(filepath, *args, **kwargs):
     fsync = kwargs.pop('fsync', False)
     
     with _tempfile(dir=os.path.dirname(filepath)) as tmppath:
@@ -68,7 +83,7 @@ def open_atomic(filepath, *args, **kwargs):
 
 
 def safe_pickle_dump(obj, fname):
-    with open_atomic(fname, 'wb') as f:
+    with _open_atomic(fname, 'wb') as f:
         pickle.dump(obj, f, -1)
 
 
