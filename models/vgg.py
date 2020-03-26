@@ -45,3 +45,10 @@ class VGG(Backbone):
         model = Model(inputs, outputs)
         return model
  
+    # def pretrained(self):
+    #     base_model = tf.keras.applications.VGG16(
+    #         input_shape=(224,224, 3), 
+    #         include_top=False, 
+    #         weights='imagenet',
+    #     )
+    #     return base_model

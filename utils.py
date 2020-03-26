@@ -10,14 +10,20 @@ from contextlib import contextmanager
 from functools import wraps
 
 
+REAL_PATH = os.path.dirname(os.path.realpath(__file__))
+
+
+def check_path(path):
+    if not os.path.exists(path):
+        os.makedirs(path, exist_ok=True)
+
+
 def _get_logger_path():
     KST = datetime.timezone(datetime.timedelta(hours=9))
     now = datetime.datetime.now(tz=KST).strftime('%Y%m%d-%H%M%S')
     
-    real_path = os.path.dirname(os.path.realpath(__file__))
-    logger_path = os.path.join(real_path, 'result', 'logs')
-    if not os.path.exists(logger_path):
-        os.makedirs(logger_path, exist_ok=True)
+    logger_path = os.path.join(REAL_PATH, 'result', 'logs')
+    check_path(logger_path)
 
     filename = now + '.log'
     filepath = os.path.join(logger_path, filename)
