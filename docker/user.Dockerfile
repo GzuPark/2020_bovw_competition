@@ -13,7 +13,9 @@ RUN adduser $USER_NAME -u $UID --quiet --gecos "" --disabled-password && \
 
 USER $USER_NAME
 
-ENV PATH="/usr/local/coder/:${PATH}"
+RUN echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config
+RUN echo "PermitEmptyPasswords yes" >> /etc/ssh/sshd_config
+RUN echo "UsePAM no" >> /etc/ssh/sshd_config
 
 SHELL ["/bin/bash", "-c"]
 RUN git clone https://github.com/magicmonty/bash-git-prompt.git ~/.bash-git-prompt --depth=1

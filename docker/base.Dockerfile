@@ -16,10 +16,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libjpeg-dev \
     libpng-dev \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    ssh \
     wget \
     unzip
 RUN rm -rf /var/lib/apt/lists/*
-# ssh install and setting
 
 # Install conda
 RUN curl -o /tmp/miniconda.sh -sSL http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
