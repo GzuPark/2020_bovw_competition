@@ -5,15 +5,16 @@ import glob
 import os
 import time
 
-import cv2
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 
+from skimage import color, exposure, io, transform
 from sklearn.model_selection import train_test_split
+
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.layers import Dense, Dropout, Flatten
 from tensorflow.keras.models import Sequential
-# from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.utils import to_categorical
 
 import utils
@@ -25,12 +26,14 @@ from utils import REAL_PATH
 
 def get_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument('-f', '--force', action='store_true', help='Force run everything')
     parser.add_argument('--seed', type=int, default=42, help='Random seed number')
     parser.add_argument('--ratio', type=float, default=0.25, help='Split ratio of train/validation')
     parser.add_argument('--image-size', type=int, nargs='+', default=[224, 224], help='Resize image size')
     parser.add_argument('--batch', type=int, default=32, help='Batch size')
     parser.add_argument('--epochs', type=int, default=100, help='Epochs')
     parser.add_argument('--lr', type=float, default=0.01, help='Learning rate')
+    parser.add_argument('--network', type=str, default='sppnet', help='Network')
     parser.add_argument('--result-log', type=str, default='default.rank', help='Log file name')
     parser.add_argument('--train', action='store_true', help='Train and evaluate BoVW model')
     parser.add_argument('--show', action='store_true', help='Show accuracy in the log file')
@@ -45,17 +48,17 @@ def get_data(ratio, seed):
     data_path = os.path.join(REAL_PATH, 'data')
     train_path = os.path.join(data_path, 'traindata')
     test_path = os.path.join(data_path, 'testdata')
-    label_path = os.path.join(data_path, 'Label2Names.csv')
+    test_label_path = os.path.join(data_path, 'Label2Names.csv')
     
     data = {}
 
-    data['train'] = []
-    data['val'] = []
+    data['train'] = {}
+    data['val'] = {}
 
-    _label_path = sorted(glob.glob(os.path.join(train_path, '*')))
+    label_path_list = sorted(glob.glob(os.path.join(train_path, '*')))
     
-    for y in _label_path:
-        _label_files_path = sorted(glob.glob(os.path.join(y, '*')))
+    for label_path in label_path_list:
+        _label_files_path = sorted(glob.glob(os.path.join(label_path, '*')))
 
         _train_img_path, _val_img_path = train_test_split(
             _label_files_path,
@@ -64,19 +67,19 @@ def get_data(ratio, seed):
             shuffle=True,
         )
 
-        data['train'] += _train_img_path
-        data['val'] += _val_img_path
+        label = label_path.split(os.path.sep)[-1]
+        data['train'][label] = sorted(_train_img_path)
+        data['val'][label] = sorted(_val_img_path)
 
-    # data['train'] = sorted(glob.glob(os.path.join(train_path, '*', '*')))
     data['test'] = sorted(glob.glob(os.path.join(test_path, '*')))
 
-    # data['train_label'] = sorted(os.listdir(train_path))
-    data['train_str_label'], _label = np.unique(sorted(os.listdir(train_path)), return_inverse=True)
-    data['train_cate_label'] = to_categorical(_label, len(_label))
-    data['test_label'] = pd.read_csv(label_path, header=None, names=['Category', 'Names'])
+    data['label_list'], _label = np.unique(sorted(os.listdir(train_path)), return_inverse=True)
+    data['label_onehot'] = to_categorical(_label, len(_label))
+
+    data['test_label'] = pd.read_csv(test_label_path, header=None, names=['Category', 'Names'])
 
     # # Add omitted labels
-    omitted_label = [k for k in data['train_str_label'] if k not in list(data['test_label']['Names'])]
+    omitted_label = [k for k in data['label_list'] if k not in list(data['test_label']['Names'])]
     for i, omitted in enumerate(omitted_label):
         data['test_label'].loc[data['test_label'].index.max()+i+1] = \
             [data['test_label']['Category'].max()+i+1, omitted]
@@ -84,83 +87,85 @@ def get_data(ratio, seed):
     return data
 
 
-def random_flip(image):
-    hflip = np.random.random() > 0.5
-    vflip = np.random.random() > 0.5
-    
-    if hflip and vflip:
-        image = cv2.flip(image, -1)
-    elif hflip:
-        image = cv2.flip(image, -1)
-    elif vflip:
-        image = cv2.flip(image, 1)
-    return image
+def load_data(args):
+    preprocessed_filename = 'preprocessed_{}_{}_{}_{}.p'.format(args.image_size[0], args.image_size[1], args.ratio, args.seed)
+    preprocessed_path = os.path.join(REAL_PATH, 'result', 'tmp', preprocessed_filename)
+
+    if (not os.path.exists(preprocessed_path)) or (args.force):
+        db = build_database(args, preprocessed_path)
+    else:
+        db = utils.pickle_load(preprocessed_path)
+
+    return db
 
 
-def normalize_and_add_noise(image):
-    image = image.astype(np.float32) / 255. - 0.5
-    image += np.random.normal(loc=0, scale=0.1, size=image.shape)
-    return image
+@utils.timer
+def build_database(args, filepath):
+    db = {}
 
-
-def make_batch(features, labels):
-    x = tf.convert_to_tensor(np.stack(features, axis=0))
-    y = tf.convert_to_tensor(np.array(labels, dtype=np.float32)[:, np.newaxis])
-    features.clear()
-    labels.clear()
-    return x, y
-
-
-# @tf.function
-# def read_data(path, label):
-#     image = cv2.imread(path)
-#     image = cv2.resize(image, (224, 224))
-#     image = random_flip(image)
-#     image = normalize_and_add_noise(image)
-
-#     return image, label
-
-
-def data_generator(batch_size, label_path, label_list, cate, img_size, **kwargs):
-    epoch_order = np.random.permutation(label_path)
-    features, labels = [], []
-    for image_path in epoch_order:
-        image = cv2.imread(image_path)
-        idx = np.where(label_list == image_path.split(os.path.sep)[-2])
-        label = cate[idx]
-
-        # Resize to training resolution
-        image = cv2.resize(image, (img_size[0], img_size[1]))
-
-        # Randomly horizontal and vertical flip
-        image = random_flip(image)
-
-        # Normalize, center, and add Gaussian noise
-        image = normalize_and_add_noise(image)
-        
-        features.append(image)
-        labels.append(label)
-        if len(features) == batch_size:
-            yield make_batch(features, labels)
-
-
-def train(args):
     data = get_data(args.ratio, args.seed)
+    db['data'] = data
 
-    train_gen = data_generator(args.batch, data['train'], data['train_str_label'], data['train_cate_label'], args.image_size)
+    db['X_train'] = []
+    db['y_train'] = []
+    db['X_val'] = []
+    db['y_val'] = []
 
-    n_classes=len(data['train_str_label'])
+    for i, label in enumerate(data['label_list']):
+        for f_train in data['train'][label]:
+            img = preprocess_img(io.imread(f_train), args.image_size)
+            img = np.array(img, dtype='float32')
+            db['X_train'].append(img)
+            db['y_train'].append(data['label_onehot'][i])
+
+        for f_val in data['val'][label]:
+            img = preprocess_img(io.imread(f_val), args.image_size)
+            img = np.array(img, dtype='float32')
+            db['X_val'].append(img)
+            db['y_val'].append(data['label_onehot'][i])
+
+    utils.safe_pickle_dump(db, filepath)
+
+    return db
+
+
+def preprocess_img(img, resolution):
+    try:
+        hsv = color.rgb2hsv(img)
+    except:
+        rbg_img = color.gray2rgb(img)
+        hsv = color.rgb2hsv(rgb_img)
+        
+    hsv[:, :, 2] = exposure.equalize_hist(hsv[:, :, 2])
+    img = color.hsv2rgb(hsv)
+    
+    min_side = min(img.shape[:-1])
+    center = img.shape[0] // 2, img.shape[1] // 2
+    w1 = center[0] - min_side // 2
+    w2 = center[0] + min_side // 2
+    h1 = center[1] - min_side // 2
+    h2 = center[1] + min_side // 2
+    img = img[w1:w2, h1:h2, :]
+    
+    img = transform.resize(img, (resolution[0], resolution[1]))
+    
+    return img
+
+
+@utils.timer
+def train(args, db):
 
     tf.keras.backend.clear_session()
     gc.collect()
     time.sleep(3)
 
+    n_classes=len(db['data']['label_list'])
+
     base_model = tf.keras.applications.VGG19(
-        input_shape=(args.image_size[0], args.image_size[0], 3), 
-        include_top=False, 
         weights='imagenet',
+        include_top=False, 
+        input_shape=(args.image_size[0], args.image_size[1], 3), 
     )
-    # base_model.summary()
 
     for layer in base_model.layers:
         layer.trainable = False
@@ -174,72 +179,19 @@ def train(args):
     model.add(Dropout(0.5))
     model.add(Dense(n_classes, activation='softmax'))
 
-    # print(model.summary())
-    # print(train_gen)
-    # print(type(train_gen))
+    model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
+    
+    # early_stopping = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=10)
+    # save_checkpoint = ModelCheckpoint('result/best_model.h5', monitor='val_loss', mode='min', save_best_only=True)
 
-    # img, label = next(iter(train_gen))
-    # for i in range(5):
-    #     print(img.numpy()[i].shape)
-    #     print(label.numpy())
-
-
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
     history = model.fit(
-        train_gen,
-        # batch_size=args.batch,
+        db['X_train'],
+        db['y_train'],
         epochs=args.epochs,
+        batch_size=args.batch,
+        validation_data=(db['X_val'], db['y_val']),
+        # callbacks=[early_stopping, save_checkpoint]
     )
-    acc = history.history['accuracy']
-    # val_acc = history.history['val_accuracy']
-    loss = history.history['loss']
-    # val_loss=history.history['val_loss']
-
-
-    print('\nacc: {}'.format(acc))
-    # print('\nval_acc: {}'.format(val_acc))
-    print('\nloss: {}'.format(loss))
-    # print('\nval_loss: {}'.format(val_loss))
-
-
-    result_path = os.path.join(REAL_PATH, 'result')
-    utils.check_path(result_path)
-
-    tmp_path = os.path.join(result_path, 'tmp')
-    utils.check_path(tmp_path)
-
-    # pred = model.predict(test_ds)
-    # pred = pred.argmax(axis=-1)
-    # print(len(data['train_str_label']))
-    # # print(data['test'])
-    # # print(len(data['test']))
-    # print(pred.shape)
-    # # print(pred[0])
-    # print(pred)
-
-    # Logging
-    # KST = datetime.timezone(datetime.timedelta(hours=9))
-    # now = datetime.datetime.now(tz=KST).strftime('%Y%m%d-%H%M%S')
-
-    # log_path = os.path.join(result_path, args.result_log)
-    # with open(log_path, 'a') as f:
-    #     f.write('{}\t{:.5f}\t{}\n'.format(now, val_acc[-1], args))
-
-    # # Make a csv
-    # submit_path = os.path.join(result_path, 'submit')
-    # utils.check_path(submit_path)
-
-    # submit_filename = 'submit_{:.5f}_{}.csv'.format(val_acc[-1], now)
-    # submit_file_path = os.path.join(submit_path, submit_filename)
-    # make_submission_csv(pred, data['train_str_label'], data['test_label'], submit_file_path)
-
-
-# @utils.timer
-# @tf.fuction
-# def predict(hist_train, y_train, hist_val, hist_test, seed, C):
-#     predict(x, batch_size=None, verbose=0, steps=None, callbacks=None, max_queue_size=10,
-#     workers=-1, use_multiprocessing=False
-# )
 
 
 def make_submission_csv(pred, submit_list, label, csv_path):
@@ -257,33 +209,16 @@ def make_submission_csv(pred, submit_list, label, csv_path):
 
 def main():
     args = get_args()
-    # data = get_data(args.ratio, args.seed)
     
-    # dd = data['train_label']
-    # print(dd)
-    # ss, ii = np.unique(dd, return_inverse=True)
-    # print(ss)
-    # print(ii)
-    
-    # print()
-    # print(data['test_label'])
+    result_path = os.path.join(REAL_PATH, 'result')
+    utils.check_path(result_path)
 
-    # if args.train:
-    #     train_grid(args)
-    # if args.show:
-    #     bovw.find_top_n(args)
+    tmp_path = os.path.join(result_path, 'tmp')
+    utils.check_path(tmp_path)
 
-    # physical_devices = tf.config.list_physical_devices('GPU')
-    # print("Num GPUs:", len(physical_devices))
-    
-    train(args)
-    # _b = 'vgg'
-    # b = backbone(_b)
-    # model = b.construct(n_classes=10, group=19)
-    # assert _b == b.backbone
-    # print(model.summary())
-    # print(b.backbone)
+    db =  load_data(args)
 
+    train(args, db)
 
 
 if __name__ == '__main__':
