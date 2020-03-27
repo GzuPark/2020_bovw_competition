@@ -9,11 +9,12 @@ USER_NAME := $(shell whoami)
 PASSWORD = default
 
 CONTAINER_NAME = bow
-TENSORBOARD = 7811
-NOTEBOOK = 7812
-PORT = 7822
+TENSORBOARD = 
+NOTEBOOK = 
+PORT = 
 POS_GPUS = 0,1,2,3,4,5,6,7
 
+TOPN=10
 SUBMIT =
 DATE := $(shell date "+%Y-%m-%d_%H:%M:%S")
 MSG = "Submitted $(DATE)"
@@ -57,9 +58,11 @@ docker-run:
 		${USER_NAME}/${IMAGE_NAME} \
 		/bin/bash
 
-install :
-	@conda install -y cudatoolkit=10.0 cudnn
-	@pip install -r requirements.txt
+best-run:
+	@python main.py --train --image-size 224 224 --network resnet101 --freeze
+
+show:
+	@python main.py --show --top-n ${TOPN}
 
 submit :
 	@kaggle competitions submit -c ${COMPETITION_NAME} -f ./result/submit/${SUBMIT} -m ${MSG}
