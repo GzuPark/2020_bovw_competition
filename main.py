@@ -156,6 +156,8 @@ def get_optimizer(args):
         optimizer = tf.keras.optimizers.RMSprop(lr=args.lr)
     elif args.optimizer.lower() == 'adam':
         optimizer = tf.keras.optimizers.Adam(lr=args.lr)
+    elif args.optimizer.lower() == 'nadam':
+        optimizer = tf.keras.optimizers.Nadam(lr=args.lr)
     return optimizer
 
 

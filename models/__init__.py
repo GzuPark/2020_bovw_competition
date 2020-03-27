@@ -9,10 +9,17 @@ class Backbone(object):
 
 
 def backbone(backbone_name):
+    backbone_name = backbone_name.lower()
     if 'vgg' in backbone_name:
         from .vgg import VGG as model
-    elif 'resnet' in backbone_name:
+    elif ('resnet' in backbone_name) and ('inception' not in backbone_name):
         from .resnet import ResNet as model
+    elif 'xception' in backbone_name:
+        from .xception import Xception as model
+    elif ('inception' in backbone_name) and ('resnet' not in backbone_name):
+        from .inception import Inception as model
+    elif 'inception_resnet' in backbone_name:
+        from .inception_resnet import InceptionResNet as model
     else:
         raise NotImplementedError('Backbone class for  \'{}\' not implemented.'.format(backbone_name))
 
