@@ -19,7 +19,7 @@ from tensorflow.keras.utils import to_categorical
 
 import utils
 
-from models import backbone
+from models import backbone, spatial_pyramid_pool
 from utils import logger
 from utils import REAL_PATH
 
@@ -34,6 +34,7 @@ def get_args():
     parser.add_argument('--epochs', type=int, default=100, help='Epochs')
     parser.add_argument('--lr', type=float, default=0.01, help='Learning rate')
     parser.add_argument('--network', type=str, default='sppnet', help='Network')
+    parser.add_argument('--spp', action='store_true', help='Apply Spatial Pyramid Pooling')
     parser.add_argument('--result-log', type=str, default='default.rank', help='Log file name')
     parser.add_argument('--train', action='store_true', help='Train and evaluate BoVW model')
     parser.add_argument('--show', action='store_true', help='Show accuracy in the log file')
@@ -44,7 +45,7 @@ def get_args():
 
 
 @utils.timer
-def get_data(ratio, seed):
+def get_data():
     data_path = os.path.join(REAL_PATH, 'data')
     train_path = os.path.join(data_path, 'traindata')
     test_path = os.path.join(data_path, 'testdata')
@@ -53,29 +54,17 @@ def get_data(ratio, seed):
     data = {}
 
     data['train'] = {}
-    data['val'] = {}
 
     label_path_list = sorted(glob.glob(os.path.join(train_path, '*')))
     
     for label_path in label_path_list:
         _label_files_path = sorted(glob.glob(os.path.join(label_path, '*')))
-
-        _train_img_path, _val_img_path = train_test_split(
-            _label_files_path,
-            test_size=ratio,
-            random_state=seed,
-            shuffle=True,
-        )
-
         label = label_path.split(os.path.sep)[-1]
-        data['train'][label] = sorted(_train_img_path)
-        data['val'][label] = sorted(_val_img_path)
+        data['train'][label] = sorted(_label_files_path)
+
+    data['label_list'] = sorted(os.listdir(train_path))
 
     data['test'] = sorted(glob.glob(os.path.join(test_path, '*')))
-
-    data['label_list'], _label = np.unique(sorted(os.listdir(train_path)), return_inverse=True)
-    data['label_onehot'] = to_categorical(_label, len(_label))
-
     data['test_label'] = pd.read_csv(test_label_path, header=None, names=['Category', 'Names'])
 
     # # Add omitted labels
@@ -88,7 +77,7 @@ def get_data(ratio, seed):
 
 
 def load_data(args):
-    preprocessed_filename = 'preprocessed_{}_{}_{}_{}.p'.format(args.image_size[0], args.image_size[1], args.ratio, args.seed)
+    preprocessed_filename = 'preprocessed_{}_{}.p'.format(args.image_size[0], args.image_size[1])
     preprocessed_path = os.path.join(REAL_PATH, 'result', 'tmp', preprocessed_filename)
 
     if (not os.path.exists(preprocessed_path)) or (args.force):
@@ -103,26 +92,17 @@ def load_data(args):
 def build_database(args, filepath):
     db = {}
 
-    data = get_data(args.ratio, args.seed)
+    data = get_data()
     db['data'] = data
 
     db['X_train'] = []
     db['y_train'] = []
-    db['X_val'] = []
-    db['y_val'] = []
 
     for i, label in enumerate(data['label_list']):
         for f_train in data['train'][label]:
             img = preprocess_img(io.imread(f_train), args.image_size)
-            img = np.array(img, dtype='float32')
             db['X_train'].append(img)
-            db['y_train'].append(data['label_onehot'][i])
-
-        for f_val in data['val'][label]:
-            img = preprocess_img(io.imread(f_val), args.image_size)
-            img = np.array(img, dtype='float32')
-            db['X_val'].append(img)
-            db['y_val'].append(data['label_onehot'][i])
+            db['y_train'].append(data['label_list'].index(label))
 
     utils.safe_pickle_dump(db, filepath)
 
@@ -152,52 +132,73 @@ def preprocess_img(img, resolution):
     return img
 
 
-@utils.timer
-def train(args, db):
+def get_train_val_data(args, db):
+    X = np.array(db['X_train'], dtype='float32')
+    y = to_categorical(db['y_train'], len(db['data']['label_list']))
 
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=args.ratio, random_state=args.seed, shuffle=True)
+
+    return X_train, X_val, y_train, y_val
+
+
+@utils.timer
+def train(args, n_classes, X_train, y_train, X_val, y_val):
     tf.keras.backend.clear_session()
     gc.collect()
     time.sleep(3)
 
-    n_classes=len(db['data']['label_list'])
-
-    base_model = tf.keras.applications.VGG19(
-        weights='imagenet',
-        include_top=False, 
-        input_shape=(args.image_size[0], args.image_size[1], 3), 
-    )
+    _backbone = backbone(args.network)
+    base_model = _backbone.pretrained(input_shape=(args.image_size[0], args.image_size[1], 3))
 
     for layer in base_model.layers:
         layer.trainable = False
 
+    base_model.summary()
     model = Sequential()
     model.add(base_model)
 
-    model.add(Flatten())
-    model.add(Dense(256, activation='relu'))
-    model.add(Dense(256, activation='relu'))
-    model.add(Dropout(0.5))
+    if args.spp:
+        spp_input_shape = base_model.layers[-1].output_shape
+        out_pool_size = [4, 2, 1]
+        spp = spatial_pyramid_pool(
+            base_model.layers[-1],
+            spp_input_shape[0],
+            [spp_input_shape[1], spp_input_shape[2]],
+            out_pool_size
+        )
+        model.add(spp)
+    else:
+        model.add(Flatten())
     model.add(Dense(n_classes, activation='softmax'))
 
-    model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
+    optimizer = tf.keras.optimizers.RMSprop(lr=args.lr)
+    # optimizer = tf.keras.optimizers.Adam(lr=args.lr)
+    model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
     
-    # early_stopping = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=10)
-    # save_checkpoint = ModelCheckpoint('result/best_model.h5', monitor='val_loss', mode='min', save_best_only=True)
+    net_path = os.path.join(REAL_PATH, 'result', args.network)
+    utils.check_path(net_path)
+
+    KST = datetime.timezone(datetime.timedelta(hours=9))
+    now = datetime.datetime.now(tz=KST).strftime('%Y%m%d-%H%M%S')
+    ckpt_filename = '{}_{}.h5'.format(args.network, str(now))
+    ckpt_path = os.path.join(net_path, ckpt_filename)
+
+    early_stopping = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=args.epochs//10)
+    save_checkpoint = ModelCheckpoint(ckpt_path, monitor='val_accuracy', mode='min', save_best_only=True)
 
     history = model.fit(
-        db['X_train'],
-        db['y_train'],
+        X_train,
+        y_train,
         epochs=args.epochs,
         batch_size=args.batch,
-        validation_data=(db['X_val'], db['y_val']),
-        # callbacks=[early_stopping, save_checkpoint]
+        validation_data=(X_val, y_val),
+        callbacks=[early_stopping, save_checkpoint]
     )
+
+    return history, ckpt_path
 
 
 def make_submission_csv(pred, submit_list, label, csv_path):
-    # print(pred)
-    # print(len(pred))
-    # print(type(pred))
     result = []
     for i, p in enumerate(list(pred)):
         res = label[label['Names'].isin([p])]['Category']
@@ -217,8 +218,8 @@ def main():
     utils.check_path(tmp_path)
 
     db =  load_data(args)
-
-    train(args, db)
+    X_train, X_val, y_train, y_val = get_train_val_data(args, db)
+    train(args, len(db['data']['label_list']), X_train, y_train, X_val, y_val)
 
 
 if __name__ == '__main__':
