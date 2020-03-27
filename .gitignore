@@ -294,3 +294,4 @@ config.py
 *.log
 data/*
 result/*
+kaggle.json

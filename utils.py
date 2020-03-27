@@ -20,7 +20,8 @@ def check_path(path):
 
 def _get_logger_path():
     KST = datetime.timezone(datetime.timedelta(hours=9))
-    now = datetime.datetime.now(tz=KST).strftime('%Y%m%d-%H%M%S')
+    # now = datetime.datetime.now(tz=KST).strftime('%Y%m%d-%H%M%S')
+    now = datetime.datetime.now(tz=KST).strftime('%Y%m%d')
     
     logger_path = os.path.join(REAL_PATH, 'result', 'logs')
     check_path(logger_path)
@@ -100,3 +101,12 @@ def pickle_load(fname):
         logger.error('error loading existing database:\n{}\nstarting from an empty database'.format(e))
         db = {}
     return db
+
+
+def find_top_n(args):
+    log_path = os.path.join(REAL_PATH, 'result', args.result_log)
+
+    df = pd.read_csv(log_path, sep='\t', header=None, names=['acc', 'ckpt'])
+    max_index = df['acc'].idxmax()
+    result = df.nlargest(args.top_n, 'acc')
+    logger.info('{}\n'.format(result))
