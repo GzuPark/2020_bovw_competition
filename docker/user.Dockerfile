@@ -24,8 +24,7 @@ RUN echo "if [ -f \"$HOME/.bash-git-prompt/gitprompt.sh\" ]; then" >> ~/.bashrc 
     echo "  source $HOME/.bash-git-prompt/gitprompt.sh" >> ~/.bashrc && \
     echo "fi" >> ~/.bashrc
 
-RUN echo "export PASSWORD=$PASSWORD" >> ~/.bashrc && \
-    echo "source activate ${CONDA_ENV_NAME}" >> ~/.bashrc
+RUN echo "source activate ${CONDA_ENV_NAME}" >> ~/.bashrc
 
 RUN source activate ${CONDA_ENV_NAME} && jupyter notebook --generate-config
 
