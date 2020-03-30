@@ -25,8 +25,6 @@ $ make download
 
 ```sh
 $ make docker-base
-
-# kaggle.json file must be locate in assets directory
 $ make docker-user PASSWORD=${PASSWORD_FOR_NOTEBOOK}
 ```
 
@@ -39,6 +37,8 @@ $ make docker-run CONTAINER_NAME=${CONTAINER_NAME} \
                   PORT=${SSH_PORT} \
                   POS_GPUS=${POS_GPUS}
 ```
+
+4. Add `kaggle.json` file to `~/.kaggle/` for executing kaggle application
 
 ## How to use
 

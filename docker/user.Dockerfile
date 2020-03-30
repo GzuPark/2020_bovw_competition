@@ -27,8 +27,6 @@ RUN echo "if [ -f \"$HOME/.bash-git-prompt/gitprompt.sh\" ]; then" >> ~/.bashrc 
 RUN echo "export PASSWORD=$PASSWORD" >> ~/.bashrc && \
     echo "source activate ${CONDA_ENV_NAME}" >> ~/.bashrc
 
-COPY assets/kaggle.json /home/${USER_NAME}/.kaggle/kaggle.json
-
 RUN source activate ${CONDA_ENV_NAME} && jupyter notebook --generate-config
 
 RUN jupyter_sha=$(python -c "from notebook.auth import passwd; print(passwd('${PASSWORD}'))") && \
