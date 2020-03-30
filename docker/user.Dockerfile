@@ -11,11 +11,11 @@ RUN adduser $USER_NAME -u $UID --quiet --gecos "" --disabled-password && \
     echo "$USER_NAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$USER_NAME && \
     chmod 0440 /etc/sudoers.d/$USER_NAME
 
-USER $USER_NAME
-
 RUN echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config
 RUN echo "PermitEmptyPasswords yes" >> /etc/ssh/sshd_config
 RUN echo "UsePAM no" >> /etc/ssh/sshd_config
+
+USER $USER_NAME
 
 SHELL ["/bin/bash", "-c"]
 RUN git clone https://github.com/magicmonty/bash-git-prompt.git ~/.bash-git-prompt --depth=1
