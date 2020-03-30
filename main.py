@@ -259,7 +259,8 @@ def find_top_n(args):
     df = pd.read_csv(log_path, sep='\t', header=None, names=['acc', 'ckpt'])
     max_index = df['acc'].idxmax()
     result = df.nlargest(args.top_n, 'acc')
-    logger.info('{}\n'.format('\n' + str(result)))
+    pd.set_option('display.max_colwidth', 100)
+    print('{}\n'.format(result))
 
 
 def main():
