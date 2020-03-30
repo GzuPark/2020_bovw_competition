@@ -20,6 +20,8 @@ def backbone(backbone_name):
         from .inception import Inception as model
     elif 'inception_resnet' in backbone_name:
         from .inception_resnet import InceptionResNet as model
+    elif 'efficientnet' in backbone_name:
+        from .efficientnet import EfficientNet as model
     else:
         raise NotImplementedError('Backbone class for  \'{}\' not implemented.'.format(backbone_name))
 

@@ -5,6 +5,7 @@ import glob
 import os
 import time
 
+import keras
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -12,10 +13,14 @@ import tensorflow as tf
 from skimage import color, exposure, io, transform
 from sklearn.model_selection import train_test_split
 
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
-from tensorflow.keras.layers import Dense, Dropout, Flatten
-from tensorflow.keras.models import Model, Sequential
-from tensorflow.keras.utils import to_categorical
+# from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras.callbacks import EarlyStopping, ModelCheckpoint
+# from tensorflow.keras.layers import Dense, Dropout, Flatten
+from keras.layers import Dense, Dropout, Flatten
+# from tensorflow.keras.models import Model, Sequential
+from keras.models import Model, Sequential
+# from tensorflow.keras.utils import to_categorical
+from keras.utils import to_categorical
 
 import utils
 
@@ -208,7 +213,9 @@ def train(args, now, n_classes, X_train, y_train, X_val, y_val):
 
     model, ckpt_filename = create_model(args, n_classes, ckpt_filename=ckpt_filename)
 
-    optimizer = get_optimizer(args)
+    # optimizer = get_optimizer(args)
+    optimizer = keras.optimizers.RMSprop(lr=args.lr)
+    # optimizer = keras.optimizers.SGD(lr=args.lr)
     model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
     ckpt_filename = '{}_{}_{}'.format(ckpt_filename, args.optimizer, args.lr)
 
@@ -259,8 +266,7 @@ def find_top_n(args):
     df = pd.read_csv(log_path, sep='\t', header=None, names=['acc', 'ckpt'])
     max_index = df['acc'].idxmax()
     result = df.nlargest(args.top_n, 'acc')
-    pd.set_option('display.max_colwidth', 100)
-    print('{}\n'.format(result))
+    logger.info('{}\n'.format('\n' + str(result)))
 
 
 def main():
